@@ -1,0 +1,107 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-08-01/tenantDeploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "topLevelManagementGroupPrefix": {
+            "type": "string",
+            "metadata": {
+                "description": "Provide prefix for the management group structure."
+            }
+        },
+        "platformMgs": {
+            "type": "array",
+            "defaultValue": [
+                "Partners"
+            ],
+            "metadata": {
+                "description": "Management groups for platform specific purposes, such as management, networking, identity etc. We only need Management MG."
+            }
+        },
+        "partnersMgs": {
+            "type": "array",
+            "defaultValue": [
+                "Partner1",
+                "Partner2"
+            ],
+            "metadata": {
+                "description": "These are the landing zone management groups for different customers."
+            }
+        }
+    },
+    "variables": {
+        "enterpriseScaleManagementGroups": {
+            "platform": "[concat(parameters('topLevelManagementGroupPrefix'), '-', 'Platform')]",
+            "partnersLandingZone": "[concat(parameters('topLevelManagementGroupPrefix'), '-', 'Partners')]",
+            "decommissioned": "[concat(parameters('topLevelManagementGroupPrefix'), '-', 'Decommissioned')]"  
+        }
+    },
+    "resources": [
+        {
+            // Create top level management group under tenant root
+            "type": "Microsoft.Management/managementGroups",
+            "scope": "/",
+            "apiVersion": "2020-05-01",
+            "name": "[parameters('topLevelManagementGroupPrefix')]",
+            "properties": {}
+        },
+        {
+            // Create management group for platform management groups (PLATFORM)
+            "type": "Microsoft.Management/managementGroups",
+            "apiVersion": "2020-05-01",
+            "scope": "/",
+            "name": "[variables('enterpriseScaleManagementGroups').platform]",
+            "dependsOn": [
+                "[tenantResourceId('Microsoft.Management/managementGroups/', parameters('topLevelManagementGroupPrefix'))]"
+            ],
+            "properties": {
+                "displayName": "[variables('enterpriseScaleManagementGroups').platform]",
+                "details": {
+                    "parent": {
+                    "id": "[tenantResourceId('Microsoft.Management/managementGroups/', parameters('topLevelManagementGroupPrefix'))]"
+                    }
+                }
+            }
+        },
+        { 
+            // Create management group for PARTNERS
+            "type": "Microsoft.Management/managementGroups",
+            "apiVersion": "2020-05-01",
+            "scope": "/",
+            "name": "[variables('enterpriseScaleManagementGroups').partnersLandingZone]",
+            "dependsOn": [
+                "[tenantResourceId('Microsoft.Management/managementGroups/', parameters('topLevelManagementGroupPrefix'))]"
+            ],
+            "properties": {
+                "displayName": "[variables('enterpriseScaleManagementGroups').partnersLandingZone]",
+                "details": {
+                    "parent": {
+                    "id": "[tenantResourceId('Microsoft.Management/managementGroups/', parameters('topLevelManagementGroupPrefix'))]"
+                    }
+                }
+            }
+        },       
+        {
+            // Create child management groups for multiple Partners
+            "type": "Microsoft.Management/managementGroups",
+            "apiVersion": "2020-05-01",
+            "scope": "/",
+            "name": "[concat(parameters('topLevelManagementGroupPrefix'),'-',parameters('partnersMgs')[copyIndex()])]" ,
+            "dependsOn": [
+                "[tenantResourceId('Microsoft.Management/managementGroups/', variables('enterpriseScaleManagementGroups').partnersLandingZone)]"
+            ],
+            "copy" : {
+                "name": "lzMgCopy",
+                "count": "[length(parameters('partnersMgs'))]"
+            },
+            "properties": {
+                "displayName": "[concat(parameters('topLevelManagementGroupPrefix'),'-',parameters('partnersMgs')[copyIndex()])]",
+                "details": {
+                    "parent": {
+                        "id": "[tenantResourceId('Microsoft.Management/managementGroups/',variables('enterpriseScaleManagementGroups').partnersLandingZone)]"
+                    }
+                }
+            }
+        }
+    ],
+    "outputs": {}
+}
